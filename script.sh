@@ -1,61 +1,62 @@
-#!/bin/bash
+pipeline {
+    agent any
 
-# Step 1: Create the application directory if it doesn't exist
-echo "Creating the app directory..."
-mkdir -p /home/ec2-user/app
-sudo yum install pip -y
+    environment {
+        SERVER_IP = credentials('prod-server-ip')
+    }
+    stages {
+        stage('Setup') {
+            steps {
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install -r requirements.txt
+                '''
+            }
+        }
+        stage('verify installation') {
+                steps {
+                    sh '''
+                        pip freeze
+                    '''
+                }
+        }
+        stage('Test') {
+                steps {
+                    sh '''
+                        echo "test complete"
+                        . venv/bin/activate
+                        pytest test_app.py
+                    '''
+                }
+        }
 
-# Step 2: Create flask.service on the EC2 instance
-echo "Creating the flask.service file..."
-sudo tee /usr/lib/systemd/system/flask.service > /dev/null <<EOL
-[Unit]
-Description=flask app
-After=network.target
+        stage('Package code') {
+            steps {
+                sh '''
+                    zip -r myapp.zip ./* -x '*.git*'
+                    ls -lart
+                '''
+            }
+        }
 
-[Service]
-User=ec2-user
-Group=ec2-user
-WorkingDirectory=/home/ec2-user/app/
-Environment="PATH=/home/ec2-user/app/venv/bin"
-ExecStart=/home/ec2-user/app/venv/bin/python3 /home/ec2-user/app/app.py
+        stage('Deploy to Prod') {
+                steps {
+                    withCredentials([sshUserPrivateKey(credentialsId: 'ssh-key', keyFileVariable: 'MY_SSH_KEY', usernameVariable: 'username')]) {
+                        sh '''
+                        # Copy the application zip file and the deployment script to the EC2 instance
+                        scp -i $MY_SSH_KEY -o StrictHostKeyChecking=no myapp.zip  ${username}@${SERVER_IP}:/home/ec2-user/
+                        scp -i $MY_SSH_KEY -o StrictHostKeyChecking=no script.sh  ${username}@${SERVER_IP}:/home/ec2-user/
 
-[Install]
-WantedBy=multi-user.target
-EOL
+                        # Execute the deployment script on the EC2 instance
+                        ssh -i $MY_SSH_KEY -o StrictHostKeyChecking=no ${username}@${SERVER_IP} << EOF
+                            chmod +x /home/ec2-user/script.sh
+                            /home/ec2-user/script.sh
+                        '''
+                    }
+                }
 
-# Step 3: Reload systemd, enable and start the flask service
-echo "Reloading systemd and starting the flask service..."
-sudo systemctl daemon-reload
-sudo systemctl enable flask.service
-sudo systemctl start flask.service
-
-# Step 4: Unzip the uploaded code into the application directory
-echo "Unzipping the application code..."
-unzip -o /home/ec2-user/myapp.zip -d /home/ec2-user/app/
-
-# Step 5: Navigate to the application directory
-cd /home/ec2-user/app
-
-# Step 6: Ensure compatibility by recreating the virtual environment if necessary
-if [ -d "venv" ]; then
-    echo "Removing existing virtual environment to avoid compatibility issues..."
-    rm -rf venv
-fi
-
-echo "Creating a new virtual environment..."
-python3 -m venv venv
-
-# Step 7: Activate the virtual environment
-echo "Activating virtual environment..."
-source venv/bin/activate
-
-# Step 8: Install required dependencies
-echo "Installing dependencies from requirements.txt..."
-pip install -r requirements.txt
-
-# Step 9: Restart the Flask service after deployment
-echo "Restarting the Flask service..."
-sudo systemctl restart flask.service
-
-# Step 10: Print completion message
-echo "Deployment completed successfully."
+        }
+        
+    }
+}
