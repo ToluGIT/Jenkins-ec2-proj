@@ -8,7 +8,6 @@ pipeline {
         stage('Setup') {
             steps {
                 sh '''
-                    cd  02-single-server-deployment/
                     python3 -m venv venv
                     . venv/bin/activate
                     pip install -r requirements.txt
@@ -18,7 +17,6 @@ pipeline {
         stage('verify installation') {
                 steps {
                     sh '''
-                        cd 02-single-server-deployment/
                         pip freeze
                     '''
                 }
@@ -26,7 +24,6 @@ pipeline {
         stage('Test') {
                 steps {
                     sh '''
-                        cd 02-single-server-deployment/
                         echo "test complete"
                         . venv/bin/activate
                         pytest test_app.py
@@ -37,7 +34,6 @@ pipeline {
         stage('Package code') {
             steps {
                 sh '''
-                    cd 02-single-server-deployment/
                     zip -r myapp.zip ./* -x '*.git*'
                     ls -lart
                 '''
