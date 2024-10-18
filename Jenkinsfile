@@ -45,8 +45,8 @@ pipeline {
                     withCredentials([sshUserPrivateKey(credentialsId: 'ssh-key', keyFileVariable: 'MY_SSH_KEY', usernameVariable: 'username')]) {
                         sh '''
                         # Copy the application zip file and the deployment script to the EC2 instance
-                        scp -i $MY_SSH_KEY -o StrictHostKeyChecking=no 02-single-server-deployment/myapp.zip  ${username}@${SERVER_IP}:/home/ec2-user/
-                        scp -i $MY_SSH_KEY -o StrictHostKeyChecking=no 02-single-server-deployment/script.sh  ${username}@${SERVER_IP}:/home/ec2-user/
+                        scp -i $MY_SSH_KEY -o StrictHostKeyChecking=no myapp.zip  ${username}@${SERVER_IP}:/home/ec2-user/
+                        scp -i $MY_SSH_KEY -o StrictHostKeyChecking=no script.sh  ${username}@${SERVER_IP}:/home/ec2-user/
 
                         # Execute the deployment script on the EC2 instance
                         ssh -i $MY_SSH_KEY -o StrictHostKeyChecking=no ${username}@${SERVER_IP} << EOF
